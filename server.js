@@ -97,6 +97,13 @@ app.post('/api/auth/register', authLimiter, (req, res) => {
 
   const exists = db.prepare('SELECT id FROM voters WHERE vin = ?').get(vin);
   if (exists) return res.status(409).json({ error: 'A voter with this VIN already exists' });
+  // Validate LGA — must be one of Ogun State's 20 official LGAs
+  if (lga) {
+    const validLga = db.prepare('SELECT name FROM lgas WHERE name = ?').get(lga);
+    if (!validLga) {
+      return res.status(400).json({ error: 'Invalid LGA. Must be a valid Ogun State Local Government Area.' });
+    }
+  }
 
   const hash = bcrypt.hashSync(String(password), 12);
   const info = db.prepare(
@@ -105,6 +112,15 @@ app.post('/api/auth/register', authLimiter, (req, res) => {
 
   audit({ actorType: 'voter', actorId: info.lastInsertRowid, action: 'REGISTER', details: `VIN ${vin}`, ip: clientIp(req) });
   res.status(201).json({ message: 'Registration successful. You can now log in.' });
+});
+// =====================================================================
+//  LGA ROUTES (Ogun State case study — Layer 2.2)
+// =====================================================================
+app.get('/api/lgas', (req, res) => {
+  const lgas = db.prepare(
+    'SELECT id, name, senatorial_district FROM lgas ORDER BY senatorial_district, name'
+  ).all();
+  res.json({ lgas });
 });
 
 app.post('/api/auth/login', authLimiter, (req, res) => {
