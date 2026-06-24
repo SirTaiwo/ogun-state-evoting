@@ -42,11 +42,11 @@ db.prepare(
 
 // ---- Sample voters ----
 const voters = [
-  { vin: 'VIN0000001', pw: 'voter123', name: 'Adaeze Okafor',   state: 'Lagos',  lga: 'Ikeja',     dob: '1995-04-12' },
-  { vin: 'VIN0000002', pw: 'voter123', name: 'Chidi Eze',       state: 'Lagos',  lga: 'Surulere',  dob: '1990-09-03' },
-  { vin: 'VIN0000003', pw: 'voter123', name: 'Fatima Bello',    state: 'Kano',   lga: 'Nassarawa', dob: '1988-12-22' },
-  { vin: 'VIN0000004', pw: 'voter123', name: 'Tunde Adeyemi',   state: 'Oyo',    lga: 'Ibadan N.', dob: '1992-07-18' },
-  { vin: 'VIN0000005', pw: 'voter123', name: 'Ngozi Nwankwo',   state: 'Enugu',  lga: 'Enugu E.',  dob: '1997-01-30' },
+  { vin: 'PVC0000001', pw: 'voter123', name: 'Adeola Akinwande',  state: 'Ogun', lga: 'Abeokuta South',   dob: '1985-03-15' },
+  { vin: 'PVC0000002', pw: 'voter123', name: 'Folake Adeyemi',    state: 'Ogun', lga: 'Ado-Odo/Ota',      dob: '1990-08-22' },
+  { vin: 'PVC0000003', pw: 'voter123', name: 'Tunde Ogundimu',    state: 'Ogun', lga: 'Ijebu Ode',        dob: '1978-11-09' },
+  { vin: 'PVC0000004', pw: 'voter123', name: 'Aminat Sowande',    state: 'Ogun', lga: 'Sagamu',           dob: '1995-05-30' },
+  { vin: 'PVC0000005', pw: 'voter123', name: 'Babatunde Oyelaja', state: 'Ogun', lga: 'Yewa North',       dob: '1982-07-04' },
 ];
 const insVoter = db.prepare(
   `INSERT INTO voters (vin, password_hash, full_name, state, lga, dob) VALUES (?, ?, ?, ?, ?, ?)`
@@ -58,16 +58,16 @@ const electionId = db.prepare(
   `INSERT INTO elections (title, description, scope, status, starts_at, ends_at)
    VALUES (?, ?, ?, 'open', datetime('now'), datetime('now','+30 day'))`
 ).run(
-  'Nigeria Presidential Election 2027 (Demo)',
-  'A demonstration presidential election for the e-voting system project.',
-  'Presidential'
+  'Ogun State Gubernatorial Election 2027 (Case Study)',
+  'A demonstration gubernatorial election for the e-voting system project.',
+  'Gubernatorial'
 ).lastInsertRowid;
 
 const candidates = [
-  { name: 'Amina Yusuf',     party: 'All Progressives Congress',     acr: 'APC' },
-  { name: 'Emeka Obiora',    party: "Peoples Democratic Party",      acr: 'PDP' },
-  { name: 'Bola Akande',     party: 'Labour Party',                  acr: 'LP'  },
-  { name: 'Sani Mohammed',   party: 'New Nigeria Peoples Party',     acr: 'NNPP'},
+  { name: 'Adetola Olabanji',     party: 'All Progressives Congress',     acr: 'APC' },
+  { name: 'Funmilayo Adeyemo',    party: "Peoples Democratic Party",      acr: 'PDP' },
+  { name: 'Olamide Sowande',     party: 'Labour Party',                  acr: 'LP'  },
+  { name: 'Babatunde Aregbesola',   party: 'New Nigeria Peoples Party',     acr: 'NNPP'},
 ];
 const insCand = db.prepare(
   `INSERT INTO candidates (election_id, full_name, party, party_acronym) VALUES (?, ?, ?, ?)`
@@ -79,6 +79,6 @@ audit({ actorType: 'system', action: 'SEED', details: 'Initial data seeded' });
 console.log('Seed complete.');
 console.log('--------------------------------------------------');
 console.log('Admin login   ->  username: admin     password: admin123');
-console.log('Voter logins  ->  VIN: VIN0000001..5   password: voter123');
+console.log('Voter logins  ->  PVC: PVC0000001..5   password: voter123');
 console.log('Sample election created & OPEN with 4 candidates.');
 console.log('--------------------------------------------------');
