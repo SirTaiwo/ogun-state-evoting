@@ -44,6 +44,12 @@ function init() {
       created_at    TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS lgas (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      name                TEXT UNIQUE NOT NULL,
+      senatorial_district TEXT NOT NULL,            -- 'Central', 'East', or 'West'
+      created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+    );
     CREATE TABLE IF NOT EXISTS elections (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       title       TEXT NOT NULL,

@@ -52,7 +52,37 @@ const insVoter = db.prepare(
   `INSERT INTO voters (vin, password_hash, full_name, state, lga, dob) VALUES (?, ?, ?, ?, ?, ?)`
 );
 for (const v of voters) insVoter.run(v.vin, hash(v.pw), v.name, v.state, v.lga, v.dob);
+// ---- Ogun State LGAs (20 LGAs across 3 senatorial districts) ----
+const ogunLgas = [
+  // Ogun Central (6 LGAs)
+  { name: 'Abeokuta North',  district: 'Central' },
+  { name: 'Abeokuta South',  district: 'Central' },
+  { name: 'Ewekoro',         district: 'Central' },
+  { name: 'Ifo',             district: 'Central' },
+  { name: 'Obafemi Owode',   district: 'Central' },
+  { name: 'Odeda',           district: 'Central' },
+  // Ogun East (9 LGAs)
+  { name: 'Ijebu East',      district: 'East' },
+  { name: 'Ijebu North',     district: 'East' },
+  { name: 'Ijebu North East',district: 'East' },
+  { name: 'Ijebu Ode',       district: 'East' },
+  { name: 'Ikenne',          district: 'East' },
+  { name: 'Odogbolu',        district: 'East' },
+  { name: 'Ogun Waterside',  district: 'East' },
+  { name: 'Remo North',      district: 'East' },
+  { name: 'Sagamu',          district: 'East' },
+  // Ogun West (5 LGAs)
+  { name: 'Ado-Odo/Ota',     district: 'West' },
+  { name: 'Yewa North',      district: 'West' },
+  { name: 'Yewa South',      district: 'West' },
+  { name: 'Imeko Afon',      district: 'West' },
+  { name: 'Ipokia',          district: 'West' },
+];
 
+const insLga = db.prepare(
+  `INSERT INTO lgas (name, senatorial_district) VALUES (?, ?)`
+);
+for (const l of ogunLgas) insLga.run(l.name, l.district);
 // ---- Sample election (open) ----
 const electionId = db.prepare(
   `INSERT INTO elections (title, description, scope, status, starts_at, ends_at)
