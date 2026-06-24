@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nigeria E-Voting — Sign in</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="flag"><i></i><i></i><i></i></span> Nigeria E-Voting System</div>
+    <nav class="topnav"><a href="/results">Live Results</a></nav>
+  </header>
+
+  <div class="container center-narrow">
+    <div class="tabs">
+      <button id="tabVoter" class="active" onclick="show('voter')">Voter</button>
+      <button id="tabRegister" onclick="show('register')">Register</button>
+      <button id="tabAdmin" onclick="show('admin')">Admin</button>
+    </div>
+
+    <div id="msg"></div>
+
+    <!-- Voter login -->
+    <div id="panel-voter" class="card">
+      <h2>Voter Login</h2>
+      <p class="muted">Sign in with your Voter Identification Number (VIN).</p>
+      <label>VIN</label>
+      <input id="v_vin" placeholder="e.g. VIN0000001" autocomplete="username" />
+      <label>Password</label>
+      <input id="v_pw" type="password" placeholder="Password" autocomplete="current-password" />
+      <div style="margin-top:16px"><button onclick="voterLogin()">Sign in</button></div>
+    </div>
+
+    <!-- Register -->
+    <div id="panel-register" class="card hidden">
+      <h2>Voter Registration</h2>
+      <label>Full name</label><input id="r_name" placeholder="Full name" />
+      <label>VIN (choose a unique ID)</label><input id="r_vin" placeholder="6-20 letters/digits" />
+      <div class="grid cols-2">
+        <div><label>State</label><input id="r_state" placeholder="e.g. Lagos" /></div>
+        <div><label>LGA</label><input id="r_lga" placeholder="Local Govt Area" /></div>
+      </div>
+      <label>Date of birth</label><input id="r_dob" type="date" />
+      <label>Password</label><input id="r_pw" type="password" placeholder="At least 6 characters" />
+      <div style="margin-top:16px"><button onclick="register()">Create account</button></div>
+    </div>
+
+    <!-- Admin login -->
+    <div id="panel-admin" class="card hidden">
+      <h2>Administrator Login</h2>
+      <p class="muted">Electoral commission staff only.</p>
+      <label>Username</label><input id="a_user" placeholder="admin" autocomplete="username" />
+      <label>Password</label><input id="a_pw" type="password" placeholder="Password" autocomplete="current-password" />
+      <div style="margin-top:16px"><button onclick="adminLogin()">Sign in</button></div>
+    </div>
+
+    <p class="muted" style="margin-top:18px;font-size:13px">
+      Demo accounts — Voter: <b>VIN0000001</b> / <b>voter123</b> &nbsp;•&nbsp; Admin: <b>admin</b> / <b>admin123</b>
+    </p>
+  </div>
+
+  <div class="footer">A final-year project demonstration • Not affiliated with INEC</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+function show(which){
+  for (const p of ['voter','register','admin']) {
+    $('panel-'+p).classList.toggle('hidden', p!==which);
+    $('tab'+p.charAt(0).toUpperCase()+p.slice(1)).classList.toggle('active', p===which);
+  }
+  $('msg').innerHTML = '';
+}
+function flash(text, type='err'){ $('msg').innerHTML = `<div class="alert ${type}">${text}</div>`; }
+
+async function api(path, body){
+  const res = await fetch(path, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+function saveSession(data){
+  sessionStorage.setItem('evoting_token', data.token);
+  sessionStorage.setItem('evoting_user', JSON.stringify(data.user));
+}
+
+async function voterLogin(){
+  try{
+    const data = await api('/api/auth/login', { vin:$('v_vin').value.trim(), password:$('v_pw').value });
+    saveSession(data); location.href='/voter';
+  }catch(e){ flash(e.message); }
+}
+async function adminLogin(){
+  try{
+    const data = await api('/api/auth/admin/login', { username:$('a_user').value.trim(), password:$('a_pw').value });
+    saveSession(data); location.href='/admin';
+  }catch(e){ flash(e.message); }
+}
+async function register(){
+  try{
+    await api('/api/auth/register', {
+      fullName:$('r_name').value.trim(), vin:$('r_vin').value.trim(), password:$('r_pw').value,
+      state:$('r_state').value.trim(), lga:$('r_lga').value.trim(), dob:$('r_dob').value
+    });
+    flash('Registration successful! Switch to the Voter tab to sign in.', 'ok');
+    show('voter');
+  }catch(e){ flash(e.message); }
+}
+</script>
+</body>
+</html>

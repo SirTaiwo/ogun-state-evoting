@@ -1,0 +1,128 @@
+/* Nigeria E-Voting System — shared styles */
+:root {
+  --green: #008751;        /* Nigerian flag green */
+  --green-dark: #006b40;
+  --green-light: #e6f4ee;
+  --ink: #15231c;
+  --muted: #5b6b63;
+  --line: #d9e3dd;
+  --bg: #f4f7f5;
+  --white: #ffffff;
+  --red: #c0392b;
+  --amber: #b8860b;
+  --shadow: 0 2px 10px rgba(0,0,0,.06);
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+}
+a { color: var(--green-dark); }
+
+/* Header */
+.topbar {
+  background: var(--green);
+  color: #fff;
+  padding: 14px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow);
+}
+.brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 18px; }
+.brand .flag {
+  width: 34px; height: 22px; border-radius: 3px; overflow: hidden;
+  display: inline-grid; grid-template-columns: 1fr 1fr 1fr; border: 1px solid rgba(255,255,255,.4);
+}
+.brand .flag i:nth-child(1){ background:#008751; }
+.brand .flag i:nth-child(2){ background:#fff; }
+.brand .flag i:nth-child(3){ background:#008751; }
+.topnav a { color:#eafaf2; margin-left:16px; text-decoration:none; font-size:14px; }
+.topnav a:hover { text-decoration:underline; }
+.topnav button { margin-left:16px; }
+
+/* Layout */
+.container { max-width: 1000px; margin: 26px auto; padding: 0 18px; }
+.center-narrow { max-width: 440px; }
+.grid { display:grid; gap:18px; }
+.cols-2 { grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); }
+.cols-4 { grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); }
+
+/* Cards */
+.card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.card h2 { margin-top:0; font-size:18px; }
+.card h3 { margin:0 0 6px; font-size:16px; }
+
+.stat { text-align:center; }
+.stat .num { font-size:30px; font-weight:800; color:var(--green-dark); }
+.stat .label { color:var(--muted); font-size:13px; }
+
+/* Forms */
+label { display:block; font-size:13px; font-weight:600; margin:12px 0 4px; }
+input, select {
+  width:100%; padding:10px 12px; border:1px solid var(--line);
+  border-radius:8px; font-size:15px; background:#fff;
+}
+input:focus, select:focus { outline:2px solid var(--green-light); border-color:var(--green); }
+button {
+  background: var(--green); color:#fff; border:none; padding:10px 16px;
+  border-radius:8px; font-size:15px; font-weight:600; cursor:pointer;
+}
+button:hover { background: var(--green-dark); }
+button.secondary { background:#fff; color:var(--green-dark); border:1px solid var(--green); }
+button.danger { background: var(--red); }
+button.small { padding:6px 10px; font-size:13px; }
+button:disabled { opacity:.5; cursor:not-allowed; }
+
+.tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+.tabs button { background:#fff; color:var(--muted); border:1px solid var(--line); }
+.tabs button.active { background:var(--green); color:#fff; border-color:var(--green); }
+
+/* Tables */
+table { width:100%; border-collapse:collapse; font-size:14px; }
+th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line); }
+th { color:var(--muted); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+
+/* Badges */
+.badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:700; }
+.badge.open { background:#e6f4ee; color:var(--green-dark); }
+.badge.draft { background:#fdf6e3; color:var(--amber); }
+.badge.closed { background:#f3e6e6; color:var(--red); }
+
+/* Candidate option */
+.candidate {
+  display:flex; align-items:center; gap:12px; padding:12px 14px;
+  border:2px solid var(--line); border-radius:10px; margin-bottom:10px; cursor:pointer;
+  transition:.15s;
+}
+.candidate:hover { border-color:var(--green); }
+.candidate.selected { border-color:var(--green); background:var(--green-light); }
+.candidate .avatar {
+  width:42px; height:42px; border-radius:50%; background:var(--green);
+  color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700;
+}
+.candidate input { width:auto; }
+
+/* Alerts */
+.alert { padding:11px 14px; border-radius:8px; margin:12px 0; font-size:14px; }
+.alert.ok { background:#e6f4ee; color:var(--green-dark); border:1px solid #b9e0cd; }
+.alert.err { background:#f9e7e5; color:var(--red); border:1px solid #f0c4bd; }
+.alert.info { background:#eef3ff; color:#2c4a8f; border:1px solid #c9d6f5; }
+
+.muted { color:var(--muted); }
+.right { text-align:right; }
+.row-between { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.receipt { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:18px; letter-spacing:.05em; font-weight:700; }
+.hidden { display:none !important; }
+.footer { text-align:center; color:var(--muted); font-size:13px; padding:24px; }
+.pill-link { font-size:13px; }

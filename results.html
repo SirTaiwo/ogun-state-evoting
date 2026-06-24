@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Results — Nigeria E-Voting</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="flag"><i></i><i></i><i></i></span> Live Results</div>
+    <nav class="topnav"><a href="/">Home</a></nav>
+  </header>
+
+  <div class="container">
+    <div class="card" style="margin-bottom:18px">
+      <div class="row-between">
+        <div style="flex:1;min-width:240px">
+          <label>Select an election</label>
+          <select id="electionSelect" onchange="loadResults()"></select>
+        </div>
+        <div class="right">
+          <div class="muted" style="font-size:13px">Auto-refreshes every 5s</div>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin-top:4px">
+            <input type="checkbox" id="autoRefresh" checked style="width:auto" /> Live
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div id="summary"></div>
+
+    <div class="grid cols-2">
+      <div class="card"><h2>Vote count</h2><canvas id="barChart" height="220"></canvas></div>
+      <div class="card"><h2>Share of votes</h2><canvas id="pieChart" height="220"></canvas></div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h2>Detailed tally</h2>
+      <table><thead><tr><th>Candidate</th><th>Party</th><th class="right">Votes</th><th class="right">%</th></tr></thead>
+        <tbody id="tallyRows"></tbody></table>
+    </div>
+  </div>
+
+  <div class="footer">A final-year project demonstration • Not affiliated with INEC</div>
+
+<script>
+const $ = (id)=>document.getElementById(id);
+let barChart, pieChart, timer;
+const PALETTE = ['#008751','#1f6feb','#b8860b','#c0392b','#6f42c1','#0a8a8a','#d35400','#2c3e50'];
+
+async function loadElectionList(){
+  const { elections } = await fetch('/api/results').then(r=>r.json());
+  $('electionSelect').innerHTML = elections.map(e=>
+    `<option value="${e.id}">${e.title} — ${e.status.toUpperCase()}</option>`).join('')
+    || '<option>No elections</option>';
+  if(elections.length) loadResults();
+}
+
+async function loadResults(){
+  const id = $('electionSelect').value;
+  if(!id) return;
+  const data = await fetch('/api/results/'+id).then(r=>r.json());
+  if(data.error){ $('summary').innerHTML = `<div class="alert err">${data.error}</div>`; return; }
+
+  const leader = data.results[0];
+  $('summary').innerHTML = `
+    <div class="grid cols-4" style="margin-bottom:18px">
+      <div class="card stat"><div class="num">${data.totalVotes}</div><div class="label">Total votes</div></div>
+      <div class="card stat"><div class="num">${data.results.length}</div><div class="label">Candidates</div></div>
+      <div class="card stat"><div class="num">${leader && data.totalVotes ? (leader.party_acronym||leader.full_name.split(' ')[0]) : '—'}</div><div class="label">Leading</div></div>
+      <div class="card stat"><div class="num">${data.election.status.toUpperCase()}</div><div class="label">Status</div></div>
+    </div>`;
+
+  $('tallyRows').innerHTML = data.results.map((c,i)=>`
+    <tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${PALETTE[i%PALETTE.length]};margin-right:7px"></span>${c.full_name}</td>
+    <td>${c.party||''} ${c.party_acronym?'('+c.party_acronym+')':''}</td>
+    <td class="right"><b>${c.votes}</b></td><td class="right">${c.percentage}%</td></tr>`).join('')
+    || '<tr><td colspan="4" class="muted">No candidates.</td></tr>';
+
+  const labels = data.results.map(c=>c.party_acronym || c.full_name.split(' ')[0]);
+  const counts = data.results.map(c=>c.votes);
+  const colors = data.results.map((_,i)=>PALETTE[i%PALETTE.length]);
+  drawBar(labels, counts, colors);
+  drawPie(labels, counts, colors);
+}
+
+function drawBar(labels, data, colors){
+  const ctx = $('barChart');
+  if(barChart) barChart.destroy();
+  barChart = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[{ label:'Votes', data, backgroundColor:colors }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{precision:0} } } }
+  });
+}
+function drawPie(labels, data, colors){
+  const ctx = $('pieChart');
+  const total = data.reduce((a,b)=>a+b,0);
+  if(pieChart) pieChart.destroy();
+  if(!total){ ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height); return; }
+  pieChart = new Chart(ctx, {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data, backgroundColor:colors }]},
+    options:{ plugins:{legend:{position:'bottom'}} }
+  });
+}
+
+function startTimer(){
+  clearInterval(timer);
+  timer = setInterval(()=>{ if($('autoRefresh').checked) loadResults(); }, 5000);
+}
+
+loadElectionList();
+startTimer();
+</script>
+</body>
+</html>

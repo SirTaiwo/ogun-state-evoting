@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — Nigeria E-Voting</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="flag"><i></i><i></i><i></i></span> Admin Dashboard</div>
+    <nav class="topnav">
+      <a href="/results">Live Results</a>
+      <span id="who" class="muted" style="color:#eafaf2"></span>
+      <button class="small secondary" onclick="logout()">Logout</button>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div id="msg"></div>
+
+    <!-- Stats -->
+    <div class="grid cols-4" id="stats" style="margin-bottom:20px"></div>
+
+    <div class="tabs">
+      <button class="active" id="t-elections" onclick="tab('elections')">Elections</button>
+      <button id="t-create" onclick="tab('create')">Create Election</button>
+      <button id="t-audit" onclick="tab('audit')">Audit Log</button>
+      <button id="t-integrity" onclick="tab('integrity')">Integrity Check</button>
+    </div>
+
+    <!-- Elections list -->
+    <div id="panel-elections">
+      <div class="card"><table><thead><tr>
+        <th>Title</th><th>Scope</th><th>Status</th><th>Candidates</th><th>Votes</th><th>Actions</th>
+      </tr></thead><tbody id="elexRows"></tbody></table></div>
+      <div id="electionDetail"></div>
+    </div>
+
+    <!-- Create election -->
+    <div id="panel-create" class="card hidden">
+      <h2>Create a new election</h2>
+      <label>Title</label><input id="c_title" placeholder="e.g. Lagos Governorship Election 2027" />
+      <label>Scope</label><input id="c_scope" placeholder="e.g. State / Presidential" />
+      <label>Description</label><input id="c_desc" placeholder="Short description" />
+      <p class="muted" style="font-size:13px">New elections start as <b>draft</b>. Add candidates, then open it for voting.</p>
+      <button onclick="createElection()">Create election</button>
+    </div>
+
+    <!-- Audit -->
+    <div id="panel-audit" class="card hidden">
+      <h2>Audit Log <button class="small secondary" style="float:right" onclick="loadAudit()">Refresh</button></h2>
+      <table><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Details</th><th>IP</th></tr></thead>
+        <tbody id="auditRows"></tbody></table>
+    </div>
+
+    <!-- Integrity -->
+    <div id="panel-integrity" class="card hidden">
+      <h2>Vote Chain Integrity</h2>
+      <p class="muted">Every vote is linked into a SHA-256 hash chain. This recomputes the chain to detect tampering.</p>
+      <button onclick="checkIntegrity()">Run integrity check</button>
+      <div id="integrityOut"></div>
+    </div>
+  </div>
+
+  <div class="footer">A final-year project demonstration • Not affiliated with INEC</div>
+
+<script>
+const $ = (id)=>document.getElementById(id);
+const token = sessionStorage.getItem('evoting_token');
+const user = JSON.parse(sessionStorage.getItem('evoting_user') || 'null');
+if(!token || !user || user.role!=='admin'){ location.href='/'; }
+$('who').textContent = user ? user.name : '';
+
+function flash(t,type='ok'){ $('msg').innerHTML = `<div class="alert ${type}">${t}</div>`; setTimeout(()=>$('msg').innerHTML='',4000); }
+function logout(){ sessionStorage.clear(); location.href='/'; }
+
+function tab(name){
+  for(const n of ['elections','create','audit','integrity']){
+    $('panel-'+n).classList.toggle('hidden', n!==name);
+    $('t-'+n).classList.toggle('active', n===name);
+  }
+  if(name==='audit') loadAudit();
+}
+
+async function authFetch(path, opts={}){
+  const res = await fetch(path, { ...opts, headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+token, ...(opts.headers||{}) }});
+  if(res.status===401){ sessionStorage.clear(); location.href='/'; return; }
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+async function loadStats(){
+  const s = await authFetch('/api/admin/stats');
+  $('stats').innerHTML = `
+    ${stat(s.voters,'Registered voters')}
+    ${stat(s.elections,'Elections')}
+    ${stat(s.votesCast,'Votes cast')}
+    ${stat(s.turnout+'%','Turnout')}`;
+}
+const stat=(n,l)=>`<div class="card stat"><div class="num">${n}</div><div class="label">${l}</div></div>`;
+
+const badge=(s)=>`<span class="badge ${s}">${s.toUpperCase()}</span>`;
+
+async function loadElections(){
+  const { elections } = await authFetch('/api/admin/elections');
+  $('elexRows').innerHTML = elections.map(e=>`
+    <tr>
+      <td><b>${e.title}</b></td><td>${e.scope||'-'}</td><td>${badge(e.status)}</td>
+      <td>${e.candidate_count}</td><td>${e.vote_count}</td>
+      <td>${actions(e)}</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">No elections yet.</td></tr>';
+}
+function actions(e){
+  let btns = `<button class="small secondary" onclick="manage(${e.id})">Manage</button> `;
+  if(e.status==='draft') btns += `<button class="small" onclick="setStatus(${e.id},'open')">Open</button>`;
+  if(e.status==='open')  btns += `<button class="small danger" onclick="setStatus(${e.id},'closed')">Close</button>`;
+  return btns;
+}
+
+async function setStatus(id,status){
+  try{ const d = await authFetch(`/api/admin/elections/${id}/status`,{method:'POST',body:JSON.stringify({status})});
+    flash(d.message); refresh();
+  }catch(e){ flash(e.message,'err'); }
+}
+
+async function manage(id){
+  const { elections } = await authFetch('/api/admin/elections');
+  const e = elections.find(x=>x.id===id);
+  // fetch candidates via voter-agnostic results endpoint (lists candidates even at 0 votes)
+  const r = await fetch('/api/results/'+id).then(x=>x.json());
+  const isDraft = e.status==='draft';
+  const candList = (r.results||[]).map(c=>`
+    <tr><td>${c.full_name}</td><td>${c.party||''} ${c.party_acronym?'('+c.party_acronym+')':''}</td>
+    <td>${c.votes}</td>
+    <td>${isDraft?`<button class="small danger" onclick="delCand(${c.id})">Remove</button>`:''}</td></tr>`).join('');
+  $('electionDetail').innerHTML = `
+    <div class="card" style="margin-top:18px">
+      <div class="row-between"><h2>${e.title} ${badge(e.status)}</h2></div>
+      <table><thead><tr><th>Candidate</th><th>Party</th><th>Votes</th><th></th></tr></thead>
+      <tbody>${candList||'<tr><td colspan="4" class="muted">No candidates yet.</td></tr>'}</tbody></table>
+      ${isDraft ? `
+        <h3 style="margin-top:16px">Add candidate</h3>
+        <div class="grid cols-2">
+          <input id="cand_name" placeholder="Full name" />
+          <input id="cand_party" placeholder="Party" />
+        </div>
+        <input id="cand_acr" placeholder="Party acronym (e.g. APC)" style="margin-top:10px" />
+        <div style="margin-top:12px"><button onclick="addCand(${id})">Add candidate</button></div>`
+        : '<p class="muted">Candidates are locked once an election leaves draft.</p>'}
+    </div>`;
+  $('electionDetail').scrollIntoView({behavior:'smooth'});
+}
+
+async function addCand(id){
+  try{
+    await authFetch(`/api/admin/elections/${id}/candidates`,{method:'POST',body:JSON.stringify({
+      fullName:$('cand_name').value.trim(), party:$('cand_party').value.trim(), partyAcronym:$('cand_acr').value.trim()
+    })});
+    flash('Candidate added'); await loadElections(); manage(id);
+  }catch(e){ flash(e.message,'err'); }
+}
+async function delCand(cid){
+  if(!confirm('Remove this candidate?')) return;
+  try{ await authFetch('/api/admin/candidates/'+cid,{method:'DELETE'}); flash('Candidate removed'); refresh(); $('electionDetail').innerHTML=''; }
+  catch(e){ flash(e.message,'err'); }
+}
+
+async function createElection(){
+  try{
+    await authFetch('/api/admin/elections',{method:'POST',body:JSON.stringify({
+      title:$('c_title').value.trim(), scope:$('c_scope').value.trim(), description:$('c_desc').value.trim()
+    })});
+    $('c_title').value=$('c_scope').value=$('c_desc').value='';
+    flash('Election created as draft'); tab('elections'); refresh();
+  }catch(e){ flash(e.message,'err'); }
+}
+
+async function loadAudit(){
+  const { entries } = await authFetch('/api/admin/audit');
+  $('auditRows').innerHTML = entries.map(a=>`
+    <tr><td>${new Date(a.created_at+'Z').toLocaleString()}</td><td>${a.actor_type}${a.actor_id?(' #'+a.actor_id):''}</td>
+    <td>${a.action}</td><td>${a.details||''}</td><td class="muted">${a.ip||''}</td></tr>`).join('')
+    || '<tr><td colspan="5" class="muted">No entries.</td></tr>';
+}
+
+async function checkIntegrity(){
+  const d = await authFetch('/api/admin/integrity');
+  $('integrityOut').innerHTML = `<div class="alert ${d.intact?'ok':'err'}">
+    ${d.intact?'✔':'✗'} ${d.message}<br>Total votes checked: ${d.totalVotes}</div>`;
+}
+
+function refresh(){ loadStats(); loadElections(); }
+refresh();
+</script>
+</body>
+</html>

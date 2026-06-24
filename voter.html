@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voter Dashboard — Nigeria E-Voting</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="flag"><i></i><i></i><i></i></span> Voter Dashboard</div>
+    <nav class="topnav">
+      <a href="/results">Live Results</a>
+      <span id="who" class="muted" style="color:#eafaf2"></span>
+      <button class="small secondary" onclick="logout()">Logout</button>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div id="msg"></div>
+
+    <div class="card" style="margin-bottom:18px">
+      <h2>Verify a vote receipt</h2>
+      <p class="muted">Anyone can confirm a receipt was recorded — without revealing the choice.</p>
+      <div class="row-between">
+        <input id="rcpt" placeholder="Enter receipt code" style="max-width:320px" />
+        <button class="secondary" onclick="verify()">Verify</button>
+      </div>
+      <div id="verifyOut"></div>
+    </div>
+
+    <h2 style="margin:6px 0 12px">Open Elections</h2>
+    <div id="elections" class="grid"></div>
+  </div>
+
+  <div class="footer">A final-year project demonstration • Not affiliated with INEC</div>
+
+<script>
+const $ = (id)=>document.getElementById(id);
+const token = sessionStorage.getItem('evoting_token');
+const user = JSON.parse(sessionStorage.getItem('evoting_user') || 'null');
+if(!token || !user || user.role!=='voter'){ location.href='/'; }
+$('who').textContent = user ? `${user.name} (${user.vin})` : '';
+
+function flash(t,type='err'){ $('msg').innerHTML = `<div class="alert ${type}">${t}</div>`; window.scrollTo(0,0); }
+function logout(){ sessionStorage.clear(); location.href='/'; }
+const initials = (n)=> n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+
+async function authFetch(path, opts={}){
+  const res = await fetch(path, { ...opts, headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+token, ...(opts.headers||{}) }});
+  if(res.status===401){ sessionStorage.clear(); location.href='/'; return; }
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+let selected = {}; // electionId -> candidateId
+
+async function load(){
+  try{
+    const { elections } = await authFetch('/api/elections');
+    const wrap = $('elections');
+    if(!elections.length){ wrap.innerHTML = '<div class="card muted">No open elections right now.</div>'; return; }
+    wrap.innerHTML = '';
+    for(const e of elections){
+      const div = document.createElement('div');
+      div.className = 'card';
+      if(e.hasVoted){
+        div.innerHTML = `<div class="row-between"><h3>${e.title}</h3><span class="badge open">OPEN</span></div>
+          <p class="muted">${e.scope||''} — ${e.description||''}</p>
+          <div class="alert ok">✔ You have already voted in this election. Thank you.</div>
+          <a class="pill-link" href="/results">See live results →</a>`;
+      } else {
+        const opts = e.candidates.map(c=>`
+          <label class="candidate" onclick="pick(${e.id},${c.id},this)">
+            <span class="avatar">${initials(c.full_name)}</span>
+            <span style="flex:1"><b>${c.full_name}</b><br><span class="muted">${c.party||''} ${c.party_acronym?'('+c.party_acronym+')':''}</span></span>
+            <input type="radio" name="e${e.id}" value="${c.id}" />
+          </label>`).join('');
+        div.innerHTML = `<div class="row-between"><h3>${e.title}</h3><span class="badge open">OPEN</span></div>
+          <p class="muted">${e.scope||''} — ${e.description||''}</p>
+          ${opts}
+          <button onclick="castVote(${e.id})">Cast my vote</button>
+          <div id="out-${e.id}"></div>`;
+      }
+      wrap.appendChild(div);
+    }
+  }catch(e){ flash(e.message); }
+}
+
+function pick(electionId, candidateId, el){
+  selected[electionId] = candidateId;
+  el.parentElement.querySelectorAll('.candidate').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  el.querySelector('input').checked = true;
+}
+
+async function castVote(electionId){
+  const candidateId = selected[electionId];
+  if(!candidateId){ flash('Please select a candidate first.'); return; }
+  if(!confirm('Confirm your vote? This cannot be changed.')) return;
+  try{
+    const data = await authFetch(`/api/elections/${electionId}/vote`, {
+      method:'POST', body: JSON.stringify({ candidateId })
+    });
+    $('out-'+electionId).innerHTML = `
+      <div class="alert ok">
+        <b>${data.message}</b><br>
+        Save your receipt to verify your vote later:<br>
+        <span class="receipt">${data.receipt}</span>
+      </div>`;
+    setTimeout(load, 1500);
+  }catch(e){
+    $('out-'+electionId).innerHTML = `<div class="alert err">${e.message}</div>`;
+  }
+}
+
+async function verify(){
+  const r = $('rcpt').value.trim();
+  if(!r) return;
+  try{
+    const res = await fetch('/api/verify/'+encodeURIComponent(r));
+    const data = await res.json();
+    if(!res.ok || !data.found){ $('verifyOut').innerHTML = `<div class="alert err">${data.error||'Not found'}</div>`; return; }
+    $('verifyOut').innerHTML = `<div class="alert ok">✔ ${data.message}<br>Election: <b>${data.election}</b><br>Cast at: ${new Date(data.castAt).toLocaleString()}</div>`;
+  }catch(e){ $('verifyOut').innerHTML = `<div class="alert err">${e.message}</div>`; }
+}
+
+load();
+</script>
+</body>
+</html>
