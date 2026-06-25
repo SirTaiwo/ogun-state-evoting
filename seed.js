@@ -85,12 +85,13 @@ const insLga = db.prepare(
 for (const l of ogunLgas) insLga.run(l.name, l.district);
 // ---- Sample election (open) ----
 const electionId = db.prepare(
-  `INSERT INTO elections (title, description, scope, status, starts_at, ends_at)
-   VALUES (?, ?, ?, 'open', datetime('now'), datetime('now','+30 day'))`
+  `INSERT INTO elections (title, description, scope_type, scope_target, status, starts_at, ends_at)
+   VALUES (?, ?, ?, ?, 'open', datetime('now'), datetime('now','+30 day'))`
 ).run(
-  'Ogun State Gubernatorial Election 2027 (Case Study)',
+  '2027 Ogun State Governorship Election (Case Study)',
   'A demonstration gubernatorial election for the e-voting system project.',
-  'Gubernatorial'
+  'state',
+  'Ogun State'
 ).lastInsertRowid;
 
 const candidates = [

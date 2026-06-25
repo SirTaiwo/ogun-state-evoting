@@ -108,4 +108,27 @@ function audit({ actorType = 'system', actorId = null, action, details = null, i
   ).run(actorType, actorId == null ? null : String(actorId), action, details, ip);
 }
 
-module.exports = { db, init, audit, DB_PATH };
+/** The six valid scope types for an election (the disciplined vocabulary). */
+const SCOPE_TYPES = [
+  'national',
+  'state',
+  'senatorial-district',
+  'federal-constituency',
+  'state-constituency',
+  'lga',
+];
+
+/** Turn structured scope fields into a human-friendly label for display. */
+function scopeLabel({ scope_type, scope_target } = {}) {
+  switch (scope_type) {
+    case 'national':             return 'Nationwide';
+    case 'state':                return scope_target || 'State';
+    case 'senatorial-district':  return scope_target ? `${scope_target} Senatorial District` : 'Senatorial District';
+    case 'federal-constituency': return scope_target ? `${scope_target} Federal Constituency` : 'Federal Constituency';
+    case 'state-constituency':   return scope_target ? `${scope_target} State Constituency` : 'State Constituency';
+    case 'lga':                  return scope_target || 'Local Government Area';
+    default:                     return scope_target || scope_type || 'Unspecified';
+  }
+}
+
+module.exports = { db, init, audit, DB_PATH, SCOPE_TYPES, scopeLabel };

@@ -14,7 +14,7 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const { db, init, audit } = require('./db');
+const { db, init, audit, SCOPE_TYPES, scopeLabel } = require('./db');
 
 init();
 
@@ -155,7 +155,7 @@ app.get('/api/auth/me', authRequired(), (req, res) => res.json({ user: req.user 
 // List open elections + whether this voter has already voted.
 app.get('/api/elections', authRequired('voter'), (req, res) => {
   const elections = db.prepare(
-    `SELECT id, title, description, scope, status, starts_at, ends_at
+    `SELECT id, title, description, scope_type, scope_target, status, starts_at, ends_at
      FROM elections WHERE status = 'open' ORDER BY created_at DESC`
   ).all();
 
@@ -165,7 +165,7 @@ app.get('/api/elections', authRequired('voter'), (req, res) => {
     const candidates = db.prepare(
       'SELECT id, full_name, party, party_acronym FROM candidates WHERE election_id = ? ORDER BY id'
     ).all(e.id);
-    return { ...e, hasVoted: !!voted, candidates };
+    return { ...e, scope: scopeLabel(e), hasVoted: !!voted, candidates };
   });
   res.json({ elections: result });
 });
@@ -242,8 +242,9 @@ app.get('/api/verify/:receipt', (req, res) => {
 // =====================================================================
 app.get('/api/results/:id', (req, res) => {
   const electionId = Number(req.params.id);
-  const election = db.prepare('SELECT id, title, scope, status FROM elections WHERE id = ?').get(electionId);
+  const election = db.prepare('SELECT id, title, scope_type, scope_target, status FROM elections WHERE id = ?').get(electionId);
   if (!election) return res.status(404).json({ error: 'Election not found' });
+  election.scope = scopeLabel(election);
 
   const rows = db.prepare(
     `SELECT c.id, c.full_name, c.party, c.party_acronym,
@@ -266,8 +267,8 @@ app.get('/api/results/:id', (req, res) => {
 // List all elections (for the public results page selector).
 app.get('/api/results', (req, res) => {
   const elections = db.prepare(
-    `SELECT id, title, scope, status FROM elections ORDER BY created_at DESC`
-  ).all();
+    `SELECT id, title, scope_type, scope_target, status FROM elections ORDER BY created_at DESC`
+  ).all().map((e) => ({ ...e, scope: scopeLabel(e) }));
   res.json({ elections });
 });
 
@@ -296,11 +297,17 @@ app.get('/api/admin/elections', adminOnly, (req, res) => {
 });
 
 app.post('/api/admin/elections', adminOnly, (req, res) => {
-  const { title, description, scope } = req.body || {};
+  const { title, description, scope_type, scope_target } = req.body || {};
   if (!title) return res.status(400).json({ error: 'Title is required' });
+  if (!SCOPE_TYPES.includes(scope_type))
+    return res.status(400).json({ error: `scope_type must be one of: ${SCOPE_TYPES.join(', ')}` });
+  if (scope_type !== 'national' && !scope_target)
+    return res.status(400).json({ error: 'scope_target is required for non-national elections' });
+
   const info = db.prepare(
-    `INSERT INTO elections (title, description, scope, status) VALUES (?, ?, ?, 'draft')`
-  ).run(title, description || null, scope || null);
+    `INSERT INTO elections (title, description, scope_type, scope_target, status)
+     VALUES (?, ?, ?, ?, 'draft')`
+  ).run(title, description || null, scope_type, scope_type === 'national' ? null : scope_target);
   audit({ actorType: 'admin', actorId: req.user.sub, action: 'ELECTION_CREATE', details: title, ip: clientIp(req) });
   res.status(201).json({ id: info.lastInsertRowid, message: 'Election created (status: draft)' });
 });
