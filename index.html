@@ -38,8 +38,12 @@
       <label>Full name</label><input id="r_name" placeholder="Full name" />
       <label>VIN (choose a unique ID)</label><input id="r_vin" placeholder="6-20 letters/digits" />
       <div class="grid cols-2">
-        <div><label>State</label><input id="r_state" placeholder="e.g. Lagos" /></div>
-        <div><label>LGA</label><input id="r_lga" placeholder="Local Govt Area" /></div>
+        <div><label>State</label><input id="r_state" value="Ogun" readonly /></div>
+        <div><label>LGA</label>
+          <select id="r_lga">
+            <option value="">-- Select your LGA --</option>
+          </select>
+        </div>
       </div>
       <label>Date of birth</label><input id="r_dob" type="date" />
       <label>Password</label><input id="r_pw" type="password" placeholder="At least 6 characters" />
@@ -108,6 +112,26 @@ async function register(){
     show('voter');
   }catch(e){ flash(e.message); }
 }
-</script>
+// ----- LGA dropdown loader (Ogun State case study) -----
+async function loadLgas(){
+  try{
+    const res = await fetch('/api/lgas');
+    const data = await res.json();
+    const select = $('r_lga');
+    const groups = { 'Central':[], 'East':[], 'West':[] };
+    for (const lga of data.lgas) groups[lga.senatorial_district].push(lga.name);
+    for (const district of ['Central','East','West']){
+      const og = document.createElement('optgroup');
+      og.label = 'Ogun ' + district;
+      for (const name of groups[district]){
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        og.appendChild(opt);
+      }
+      select.appendChild(og);
+    }
+  }catch(e){ console.error('Failed to load LGAs:', e); }
+}
+loadLgas();</script>
 </body>
 </html>
