@@ -153,10 +153,12 @@ function isEligible(voter, election) {
     case 'national':
       return { eligible: true, reason: 'National election — all voters eligible' };
 
-    case 'state':
-      return voter.state === target
+    case 'state': {
+      const norm = (s) => String(s || '').trim().replace(/\s+state$/i, '').toLowerCase();
+      return norm(voter.state) === norm(target)
         ? { eligible: true,  reason: `Registered in ${target}` }
         : { eligible: false, reason: `Not registered in ${target}` };
+    }
 
     case 'senatorial-district': {
       const row = db.prepare('SELECT senatorial_district FROM lgas WHERE name = ?').get(voter.lga);

@@ -14,7 +14,7 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const { db, init, audit, SCOPE_TYPES, scopeLabel } = require('./db');
+const { db, init, audit, SCOPE_TYPES, scopeLabel, isEligible } = require('./db');
 
 init();
 
@@ -154,19 +154,24 @@ app.get('/api/auth/me', authRequired(), (req, res) => res.json({ user: req.user 
 
 // List open elections + whether this voter has already voted.
 app.get('/api/elections', authRequired('voter'), (req, res) => {
+  const voter = db.prepare('SELECT * FROM voters WHERE id = ?').get(req.user.sub);
+  if (!voter) return res.status(404).json({ error: 'Voter not found' });
+
   const elections = db.prepare(
     `SELECT id, title, description, scope_type, scope_target, status, starts_at, ends_at
      FROM elections WHERE status = 'open' ORDER BY created_at DESC`
   ).all();
 
-  const result = elections.map((e) => {
-    const vh = voterHashFor(req.user.sub, e.id);
-    const voted = db.prepare('SELECT id FROM votes WHERE election_id = ? AND voter_hash = ?').get(e.id, vh);
-    const candidates = db.prepare(
-      'SELECT id, full_name, party, party_acronym FROM candidates WHERE election_id = ? ORDER BY id'
-    ).all(e.id);
-    return { ...e, scope: scopeLabel(e), hasVoted: !!voted, candidates };
-  });
+  const result = elections
+    .filter((e) => isEligible(voter, e).eligible)
+    .map((e) => {
+      const vh = voterHashFor(req.user.sub, e.id);
+      const voted = db.prepare('SELECT id FROM votes WHERE election_id = ? AND voter_hash = ?').get(e.id, vh);
+      const candidates = db.prepare(
+        'SELECT id, full_name, party, party_acronym FROM candidates WHERE election_id = ? ORDER BY id'
+      ).all(e.id);
+      return { ...e, scope: scopeLabel(e), hasVoted: !!voted, candidates };
+    });
   res.json({ elections: result });
 });
 
@@ -178,6 +183,11 @@ app.post('/api/elections/:id/vote', voteLimiter, authRequired('voter'), (req, re
   const election = db.prepare('SELECT * FROM elections WHERE id = ?').get(electionId);
   if (!election) return res.status(404).json({ error: 'Election not found' });
   if (election.status !== 'open') return res.status(403).json({ error: 'This election is not open for voting' });
+
+  const voter = db.prepare('SELECT * FROM voters WHERE id = ?').get(req.user.sub);
+  const elig = isEligible(voter, election);
+  if (!elig.eligible)
+    return res.status(403).json({ error: `You are not eligible to vote in this election: ${elig.reason}` });
 
   const candidate = db.prepare('SELECT * FROM candidates WHERE id = ? AND election_id = ?').get(candidateId, electionId);
   if (!candidate) return res.status(400).json({ error: 'Invalid candidate for this election' });
