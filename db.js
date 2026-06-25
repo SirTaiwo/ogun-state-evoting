@@ -131,4 +131,54 @@ function scopeLabel({ scope_type, scope_target } = {}) {
   }
 }
 
-module.exports = { db, init, audit, DB_PATH, SCOPE_TYPES, scopeLabel };
+/**
+ * Decide whether a voter may vote in a given election, computed fresh
+ * from scope rules. Returns { eligible: boolean, reason: string }.
+ *
+ *   national             -> every active voter
+ *   state                -> voter.state matches election.scope_target
+ *   senatorial-district  -> the district of voter's LGA matches scope_target
+ *   lga                  -> voter.lga matches scope_target
+ *   federal/state-constituency -> not yet supported (no boundary mapping seeded)
+ */
+function isEligible(voter, election) {
+  if (!voter || !election)
+    return { eligible: false, reason: 'Missing voter or election' };
+  if (!voter.is_active)
+    return { eligible: false, reason: 'Voter account is inactive' };
+
+  const target = election.scope_target;
+
+  switch (election.scope_type) {
+    case 'national':
+      return { eligible: true, reason: 'National election — all voters eligible' };
+
+    case 'state':
+      return voter.state === target
+        ? { eligible: true,  reason: `Registered in ${target}` }
+        : { eligible: false, reason: `Not registered in ${target}` };
+
+    case 'senatorial-district': {
+      const row = db.prepare('SELECT senatorial_district FROM lgas WHERE name = ?').get(voter.lga);
+      if (!row)
+        return { eligible: false, reason: `Voter's LGA (${voter.lga || 'none'}) not found` };
+      return row.senatorial_district === target
+        ? { eligible: true,  reason: `${voter.lga} is in ${target}` }
+        : { eligible: false, reason: `${voter.lga} is in ${row.senatorial_district}, not ${target}` };
+    }
+
+    case 'lga':
+      return voter.lga === target
+        ? { eligible: true,  reason: `Registered in ${target}` }
+        : { eligible: false, reason: `Not registered in ${target}` };
+
+    case 'federal-constituency':
+    case 'state-constituency':
+      return { eligible: false, reason: `${election.scope_type} eligibility not yet supported` };
+
+    default:
+      return { eligible: false, reason: `Unknown scope_type: ${election.scope_type}` };
+  }
+}
+
+module.exports = { db, init, audit, DB_PATH, SCOPE_TYPES, scopeLabel, isEligible };
