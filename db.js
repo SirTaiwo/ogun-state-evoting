@@ -139,7 +139,8 @@ function scopeLabel({ scope_type, scope_target } = {}) {
  *   state                -> voter.state matches election.scope_target
  *   senatorial-district  -> the district of voter's LGA matches scope_target
  *   lga                  -> voter.lga matches scope_target
- *   federal/state-constituency -> not yet supported (no boundary mapping seeded)
+ *   state-constituency   -> matched at LGA granularity (target is an LGA name)
+ *   federal-constituency -> not yet supported (House of Reps not modelled)
  */
 function isEligible(voter, election) {
   if (!voter || !election)
@@ -169,10 +170,12 @@ function isEligible(voter, election) {
         : { eligible: false, reason: `${voter.lga} is in ${row.senatorial_district}, not ${target}` };
     }
 
-    case 'lga':
+   case 'state-constituency':
+      // Modelled at LGA granularity: the constituency target is an LGA name.
+      // Finer sub-LGA boundaries are deliberately not invented (data-integrity decision).
       return voter.lga === target
-        ? { eligible: true,  reason: `Registered in ${target}` }
-        : { eligible: false, reason: `Not registered in ${target}` };
+        ? { eligible: true,  reason: `In state constituency (LGA: ${target})` }
+        : { eligible: false, reason: `Not in state constituency (LGA: ${target})` };
 
     case 'federal-constituency':
     case 'state-constituency':
