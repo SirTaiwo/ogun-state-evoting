@@ -80,6 +80,31 @@ Despite the bugs above, the AI-generated base implementation includes several so
 
 The salt is held server-side (in environment variable `VOTE_SALT`). Without the salt, the hash cannot be reverse-engineered to identify the voter, but the system can still verify that a given voter has voted.
 
+### Ballot secrecy: the audit log can re-link voter to vote
+
+The `votes` table deliberately stores a salted `voter_hash` rather than a voter
+id, so that reading the votes table alone does not reveal who cast which ballot.
+This is the intended ballot-secrecy property and it holds against an outsider
+reading that one table.
+
+It does **not** hold once the audit log is considered alongside it. Every cast
+writes a `VOTE_CAST` row to `audit_log` keyed by the real `voter_id` with a
+timestamp, while the `votes` table records rows in insertion order (`id`) each
+with its own `created_at`. Because both orderings derive from the same sequence
+of casts, the ordered `VOTE_CAST` entries can be correlated with the ordered
+`votes` rows to re-link a voter to their specific vote — **without needing the
+`VOTE_SALT` at all.** This is a sharper secrecy leak than the salt-knowledge case,
+because it requires no secret, only read access to both tables.
+
+The fix is a design change, not a parameter: do not record per-voter vote events
+in a separately-ordered log that can be aligned with the votes table. Either omit
+the per-voter `VOTE_CAST` timestamp, decouple vote insertion order from cast order,
+or record the audit event without the ordering signal that enables the correlation.
+
+This observation only surfaced from reading `server.js` (the cast path and audit
+call) and `db.js` (the two tables' structures) together — neither file shows it
+alone. It is cross-referenced in SECURITY-ANALYSIS.md §5.
+
 ### 3.3 Vote Integrity
 
 **SHA-256 hash chain across all votes.** Every vote includes a `prev_hash` (the previous vote's hash) and a `vote_hash` (this vote's hash). Together they form a chain — modifying any historical vote breaks the chain, and the break can be detected.
